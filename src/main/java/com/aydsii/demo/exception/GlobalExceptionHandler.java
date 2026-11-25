@@ -1,9 +1,23 @@
 package com.aydsii.demo.exception;
 
-import org.springframework.http.ProblemDetail;
+import com.aydsii.demo.CU_34.dto.ApiResponse;
+import com.aydsii.demo.CU_12.exception.CarritoVacioException;
+import com.aydsii.demo.CU_12.exception.ClienteNoEncontradoException;
+import com.aydsii.demo.CU_12.exception.MedioPagoNoEncontradoException;
+import com.aydsii.demo.CU_12.exception.SolicitudInvalidaException;
+import com.aydsii.demo.CU_34.exception.ClienteInactivoException;
+import com.aydsii.demo.CU_34.exception.DatosResenaInvalidosException;
+import com.aydsii.demo.CU_34.exception.ErrorObtencionException;
+import com.aydsii.demo.CU_34.exception.ErrorRegistroException;
+import com.aydsii.demo.CU_34.exception.PedidoNoEncontradoException;
+import com.aydsii.demo.CU_34.exception.ProductoNoEncontradoException;
+import com.aydsii.demo.CU_34.exception.ProductoNoResenableException;
+import com.aydsii.demo.CU_34.exception.StockInsuficienteException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -17,9 +31,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.util.stream.Collectors;
 
 /**
- * Captura las excepciones lanzadas en cualquier capa y las convierte en una
- * respuesta HTTP con un {@link ProblemDetail} (status, title y detail). Así el
- * controller y el service no tienen que preocuparse por armar las respuestas de error.
+ * Captura las excepciones de ambos módulos y conserva el formato de error propio de cada API:
+ * {@link ProblemDetail} para CU_12 y {@link ApiResponse} para CU_34.
  */
 @Slf4j
 @RestControllerAdvice
@@ -31,8 +44,42 @@ public class GlobalExceptionHandler {
             MedioPagoNoEncontradoException.class,
             ProductoNoEncontradoException.class,
             PedidoNoEncontradoException.class })
-    public ResponseEntity<ProblemDetail> handleNoEncontrado(RuntimeException ex) {
+    public ResponseEntity<?> handleNoEncontrado(RuntimeException ex, HttpServletRequest request) {
+        if (esRutaCU34(request)) {
+            log.warn("Recurso no encontrado: {}", ex.getMessage());
+            return responderApi(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
         return responder(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(ClienteInactivoException.class)
+    public ResponseEntity<ApiResponse<?>> handleClienteInactivo(ClienteInactivoException ex) {
+        log.warn("Cliente inexistente o inactivo: {}", ex.getMessage());
+        return responderApi(HttpStatus.FORBIDDEN, ex.getMessage());
+    }
+
+    @ExceptionHandler(DatosResenaInvalidosException.class)
+    public ResponseEntity<ApiResponse<?>> handleDatosResenaInvalidos(DatosResenaInvalidosException ex) {
+        log.warn("Reseña con datos inválidos: {}", ex.getErrores());
+        return responderApi(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(ProductoNoResenableException.class)
+    public ResponseEntity<ApiResponse<?>> handleProductoNoResenable(ProductoNoResenableException ex) {
+        log.warn("Producto no reseñable: {}", ex.getMessage());
+        return responderApi(HttpStatus.CONFLICT, ex.getMessage());
+    }
+
+    @ExceptionHandler(ErrorObtencionException.class)
+    public ResponseEntity<ApiResponse<?>> handleErrorObtencion(ErrorObtencionException ex) {
+        log.error("Falla al obtener la información: {}", ex.getMessage(), ex);
+        return responderApi(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
+    @ExceptionHandler(ErrorRegistroException.class)
+    public ResponseEntity<ApiResponse<?>> handleErrorRegistro(ErrorRegistroException ex) {
+        log.error("Falla al registrar la reseña: {}", ex.getMessage(), ex);
+        return responderApi(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
     }
 
     /** 400: carrito vacío o solicitud inconsistente. */
@@ -117,5 +164,16 @@ public class GlobalExceptionHandler {
         log.warn("Respuesta de error {}: {}", status.value(), mensaje);
         return ResponseEntity.status(status)
                 .body(ProblemDetail.forStatusAndDetail(status, mensaje));
+    }
+
+    private ResponseEntity<ApiResponse<?>> responderApi(HttpStatus status, String mensaje) {
+        return ResponseEntity.status(status).body(ApiResponse.error(status.value(), mensaje));
+    }
+
+    private boolean esRutaCU34(HttpServletRequest request) {
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        return path.matches("/api/clientes/[^/]+/pedidos(?:/[^/]+)?")
+                || path.matches("/api/clientes/[^/]+/productos-resenables")
+                || path.equals("/api/resenas");
     }
 }
