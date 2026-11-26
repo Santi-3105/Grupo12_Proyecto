@@ -1,6 +1,5 @@
 package com.aydsii.demo.CU_34.model;
 
-import com.aydsii.demo.CU_34.exception.StockInsuficienteException;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -10,8 +9,7 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 /**
- * Producto del catálogo. Conoce su stock y sabe verificarlo / descontarlo
- * (métodos {@code verificar_stock} y {@code descontar_stock} del diagrama estático).
+ * Producto del catálogo.
  */
 @Entity
 @Table(name = "productos")
@@ -60,34 +58,5 @@ public class Producto {
         this.precio = precio;
         this.stock = stock;
         this.estado = estado;
-    }
-
-    /**
-     * Verifica que el producto esté disponible y que alcance el stock.
-     *
-     * @param cantidad unidades que se quieren comprar
-     * @throws StockInsuficienteException si no está disponible o no hay stock suficiente
-     */
-    public void verificarStock(Integer cantidad) {
-        if (!Boolean.TRUE.equals(estado)) {
-            throw new StockInsuficienteException(
-                    "El producto '" + nombre + "' no está disponible para la venta");
-        }
-        if (stock < cantidad) {
-            throw new StockInsuficienteException(
-                    "Stock insuficiente para '" + nombre + "': solicitado " + cantidad
-                            + ", disponible " + stock);
-        }
-    }
-
-    /**
-     * Resta la cantidad comprada al stock. Vuelve a verificar por seguridad
-     * (por ejemplo si el mismo producto aparece dos veces en el carrito).
-     *
-     * @param cantidad unidades a descontar
-     */
-    public void descontarStock(Integer cantidad) {
-        verificarStock(cantidad);
-        this.stock -= cantidad;
     }
 }

@@ -46,66 +46,71 @@ singletons de Spring, y `ReglasResena` es el patrón GoF implementado a mano.
 ## 2. SIMPLE LOGGING FACADE (SLF4J)
 
 ### El problema
-Existen varias librerías para escribir logs (Logback, Log4j2, java.util.logging), cada una con **su propia API**. Si el código usara directamente una,
-quedaría atado a ella: cambiarla obligaría a reescribir todas las líneas de log del proyecto. Además, las librerías que uno usa (Spring, Hibernate)
-vienen con la suya y habría varios logs mezclados.
+Hay distintas bibliotecas que pueden escribir registros de ejecución (logs). Cada una tiene sus propias clases y métodos. Si el código de negocio
+dependiera directamente de una biblioteca concreta, cambiarla podría obligar a modificar muchas clases.
 
-### La solución: una FACHADA (patrón *Facade*)
-Una **fachada** es una interfaz simple que se interpone entre el cliente y un subsistema complejo o intercambiable. SLF4J ("Simple Logging **Facade** for Java")
-es esa interfaz: define **qué** se puede hacer (`info`, `warn`, `error`...) pero **no cómo**. Quién escribe de verdad se decide aparte, por configuración.
+### La solución: una fachada
+SLF4J ofrece una API común entre el código de la aplicación y la biblioteca que escribe los logs. En el código se usan `org.slf4j.Logger` y
+`LoggerFactory`; una implementación compatible, elegida entre las dependencias del proyecto, se encarga de producir la salida.
 
 ```
- NUESTRO CÓDIGO                 FACHADA                    IMPLEMENTACIÓN REAL            SALIDA
-┌────────────────────┐   ┌───────────────────┐   ┌───────────────────────────┐   ┌──────────────┐
-│ HistorialCompras-  │   │  slf4j-api        │   │  logback-classic          │   │ consola      │
-│ Service            │──▶│  org.slf4j.Logger │──▶│  (el "binding" que trae   │──▶│ archivo      │
-│ ResenaService ...  │   │  LoggerFactory    │   │   Spring Boot)            │   │ logs/        │
-└────────────────────┘   └───────────────────┘   └───────────────────────────┘   └──────────────┘
-   solo conoce esto  ─────────┘                    ◀── se puede cambiar (p. ej. por Log4j2) sin tocar el código
+Código de la aplicación      API común                 Implementación elegida       Destinos
+Controller / Service  ───▶  SLF4J: Logger       ───▶  Log4j2                 ───▶  consola
+                            LoggerFactory             (Log4jLogger)                 logs/demo.log
 ```
-La ventaja clave: **para cambiar Logback por Log4j2 se cambia una dependencia en el `pom.xml`; ni una línea de código Java**.
-(Dato fino: Logback implementa la interfaz de SLF4J directamente; otros, como Log4j2, necesitan una pieza intermedia que la adapte.)
 
-### Cómo está implementado en el proyecto
-**1) Cada clase pide su logger a la fábrica** (esto es lo único que "sabe" nuestro código):
+La fachada reduce el acoplamiento: las clases de negocio hablan con SLF4J en vez de importar directamente clases de Log4j2. La biblioteca real
+se selecciona y configura por separado. Cambiarla requiere modificar las dependencias/configuración, pero no la forma en que el código usa `Logger`.
+
+### Cómo está implementado en este proyecto
+**1) Las clases solicitan un logger a `LoggerFactory`:**
 ```java
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 private static final Logger log = LoggerFactory.getLogger(ResenaService.class);
 ```
-- Fijate los `import`: **solo `org.slf4j`**. En ninguna clase aparece `ch.qos.logback`. Eso es la fachada.
-- Se pasa la clase para que el log muestre quién lo escribió (`...CU_34.service.ResenaService - mensaje`).
-- `private static final`: un logger por clase, creado una vez.
-- Lombok `@Slf4j` (que usás en CU_12) genera **exactamente esa línea** por vos. En CU_34 la dejé escrita para que se vea qué hay detrás.
+- El tipo declarado es la interfaz de SLF4J; el código no declara un logger de Log4j2.
+- Se pasa la clase para identificar el origen del mensaje.
+- `static final` mantiene un logger asociado a la clase.
+- En CU_12 y en `GlobalExceptionHandler` se usa Lombok `@Slf4j`, que genera un logger de SLF4J.
 
-**2) Se escribe con niveles**, según la gravedad:
-| Nivel | Cuándo | Ejemplo en CU_34 |
-|---|---|---|
-| `debug` | Detalle técnico para desarrollar | `GET /api/clientes/{}/pedidos`, "Compra concretada: true" |
-| `info` | Hechos importantes del negocio | "Reseña 7 registrada (cliente 1, producto 3)" |
-| `warn` | Algo anómalo causado por el **cliente** (4xx) | "Producto no reseñable: ya reseñaste..." |
-| `error` | Falla del **sistema** (5xx) | "Falla al registrar la reseña" + stack trace |
+**2) La implementación elegida es Log4j2.** En `pom.xml` se agrega `spring-boot-starter-log4j2` y se excluye el logging por defecto de Spring
+Boot en los starters correspondientes. Así se evita mezclar implementaciones. En la prueba actual, la clase concreta que expone el adaptador es
+`org.apache.logging.slf4j.Log4jLogger`.
 
-**3) Mensajes parametrizados:** `log.info("Reseña {} registrada", id)` en lugar de `"Reseña " + id + " registrada"`. Las llaves `{}` se reemplazan en orden,
-y si el nivel está desactivado la concatenación ni siquiera se hace (más eficiente).
+**3) La configuración de salida está en `src/main/resources/log4j2-spring.xml`.** Los logs de la aplicación (`com.aydsii`) se configuran en
+`DEBUG`; se envían a la consola y al archivo `logs/demo.log`. Log4j2 se ocupa del formato y de la rotación del archivo. Esa configuración es
+distinta de la fachada: SLF4J define cómo llama el código al logger; Log4j2 decide cómo y dónde se escribe.
 
-**4) Las excepciones van como último argumento:** `log.error("Falla: {}", ex.getMessage(), ex)` imprime el mensaje y el stack trace completo.
+**4) Los niveles expresan la importancia:** `debug` para información de diagnóstico; `info` para eventos relevantes del flujo; `warn` para
+situaciones esperables o errores del pedido; y `error` para fallas del sistema. Por ejemplo, los controllers registran la llegada de una petición
+en `debug`, los services informan acciones del caso de uso en `info`, y el manejador global registra errores de cliente con `warn` y fallas
+inesperadas o de infraestructura con `error`.
 
-**5) Se loguea una sola vez, en el borde:** los errores se registran en `GlobalExceptionHandler` (infraestructura común), no en cada `catch` del service. "Loguear y relanzar"
-es un anti-patrón: el mismo error saldría duplicado en el log.
+**5) Los mensajes pueden recibir valores mediante `{}`**, por ejemplo `log.info("CU-03 - Cliente {}", idCliente)`. Esto evita construir el texto
+con concatenaciones y deja los valores en su lugar correspondiente. Al pasar una excepción como último argumento a `log.error`, el backend puede
+incluir su detalle y la traza.
 
-**6) El nivel se cambia por configuración, sin tocar código** (`application.properties`):
+### Cómo demostrarlo
+El test `src/test/java/com/aydsii/demo/CU_34/logging/LoggingFacadeTest.java` es una prueba pequeña de Java; no necesita levantar Spring ni acceder
+a la base de datos. Ejecutarlo desde la carpeta del proyecto:
+```powershell
+.\mvnw.cmd -Dtest=LoggingFacadeTest test
 ```
-logging.level.com.aydsii.demo.CU_34=DEBUG
-```
-La salida (formato, archivo en `logs/`) la define la configuración de Logback del proyecto, no las clases.
+En la salida se muestran la interfaz que usa el código (`org.slf4j.Logger`) y la clase concreta proporcionada en esta configuración
+(`org.apache.logging.slf4j.Log4jLogger`), además de un mensaje `INFO` de ejemplo. El test también verifica que `Logger` es una interfaz y que
+pedir dos veces el logger con el mismo nombre devuelve el mismo objeto. Esto demuestra el uso de la fachada en esta ejecución; no demuestra por sí
+solo cómo sería cambiar la implementación.
 
-### Guion para explicarlo "con tus palabras" (1 minuto)
-> "SLF4J es una fachada de logging: una interfaz común, `Logger`, que oculta qué librería escribe realmente los logs. En mi código solo importo `org.slf4j`,
-> pido el logger con `LoggerFactory.getLogger(MiClase.class)` y escribo con `info`, `warn` o `error` según la gravedad. Spring Boot trae Logback como
-> implementación, pero si mañana quisiera Log4j2 cambiaría una dependencia del `pom.xml` y no tocaría el código. Registro los errores una sola vez, en el
-> manejador de excepciones, con `warn` si el error es del cliente y `error` si es del sistema, para no duplicar mensajes."
+Para completar la explicación, se pueden señalar tres lugares: los imports `org.slf4j` en las clases CU_34, `spring-boot-starter-log4j2` en
+`pom.xml` y los destinos de salida en `log4j2-spring.xml`.
+
+### Guion para explicarlo con palabras simples
+> “Para registrar lo que va pasando, el código no escribe directamente contra Log4j2. Usa SLF4J, que es como un idioma común o una capa intermedia:
+> las clases piden un `Logger` y registran mensajes con niveles como `debug`, `info`, `warn` y `error`. En este proyecto, Log4j2 es quien recibe esos
+> mensajes y los muestra en la consola y en `logs/demo.log`. Lo puedo mostrar ejecutando el test: imprime la interfaz SLF4J y la clase concreta que
+> está detrás. Así se ve que el código depende de la fachada y la salida queda a cargo de la implementación configurada.”
 
 ## 3. Dependencias entre módulos (útil para la vista de Módulos del documento de arquitectura)
 ```

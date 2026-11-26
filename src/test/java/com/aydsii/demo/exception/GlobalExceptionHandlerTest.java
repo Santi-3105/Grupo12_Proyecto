@@ -1,8 +1,9 @@
 package com.aydsii.demo.exception;
 
 import com.aydsii.demo.CU_34.dto.ApiResponse;
-import com.aydsii.demo.CU_34.exception.PedidoNoEncontradoException;
+import com.aydsii.demo.CU_34.exception.ProductoNoEncontradoException;
 import com.aydsii.demo.CU_34.exception.ProductoNoResenableException;
+import com.aydsii.demo.CU_12.exception.PedidoNoEncontradoException;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.http.HttpStatus;
@@ -16,11 +17,11 @@ class GlobalExceptionHandlerTest {
     private final GlobalExceptionHandler handler = new GlobalExceptionHandler();
 
     @Test
-    void pedidoNoEncontradoEnCu34MantieneElEnvoltorioApiResponse() {
+    void productoNoEncontradoEnCu34MantieneElEnvoltorioApiResponse() {
         MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRequestURI("/api/clientes/1/pedidos/2");
+        request.setRequestURI("/api/resenas");
 
-        var response = handler.handleNoEncontrado(new PedidoNoEncontradoException(2L), request);
+        var response = handler.handleNoEncontrado(new ProductoNoEncontradoException(2L), request);
 
         assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
         assertInstanceOf(ApiResponse.class, response.getBody());
