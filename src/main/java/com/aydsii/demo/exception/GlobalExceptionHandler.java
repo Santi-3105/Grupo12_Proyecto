@@ -4,15 +4,15 @@ import com.aydsii.demo.CU_34.dto.ApiResponse;
 import com.aydsii.demo.CU_12.exception.CarritoVacioException;
 import com.aydsii.demo.CU_12.exception.ClienteNoEncontradoException;
 import com.aydsii.demo.CU_12.exception.MedioPagoNoEncontradoException;
+import com.aydsii.demo.CU_12.exception.PedidoNoEncontradoException;
 import com.aydsii.demo.CU_12.exception.SolicitudInvalidaException;
+import com.aydsii.demo.CU_12.exception.StockInsuficienteException;
 import com.aydsii.demo.CU_34.exception.ClienteInactivoException;
 import com.aydsii.demo.CU_34.exception.DatosResenaInvalidosException;
 import com.aydsii.demo.CU_34.exception.ErrorObtencionException;
 import com.aydsii.demo.CU_34.exception.ErrorRegistroException;
-import com.aydsii.demo.CU_34.exception.PedidoNoEncontradoException;
 import com.aydsii.demo.CU_34.exception.ProductoNoEncontradoException;
 import com.aydsii.demo.CU_34.exception.ProductoNoResenableException;
-import com.aydsii.demo.CU_34.exception.StockInsuficienteException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -172,8 +172,7 @@ public class GlobalExceptionHandler {
 
     private boolean esRutaCU34(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());
-        return path.matches("/api/clientes/[^/]+/pedidos(?:/[^/]+)?")
-                || path.matches("/api/clientes/[^/]+/productos-resenables")
+        return path.matches("/api/clientes/[^/]+/pedidos")
                 || path.equals("/api/resenas");
     }
 }

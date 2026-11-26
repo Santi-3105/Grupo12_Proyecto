@@ -1,9 +1,15 @@
 package com.aydsii.demo.CU_12.config;
 
 import com.aydsii.demo.CU_12.model.*;
-import com.aydsii.demo.CU_12.repository.*;
-import com.aydsii.demo.CU_34.model.*;
-import com.aydsii.demo.CU_34.repository.*;
+import com.aydsii.demo.CU_12.repository.CarritoRepository;
+import com.aydsii.demo.CU_12.repository.EstadoPedidoRepository;
+import com.aydsii.demo.CU_12.repository.MedioPagoRepository;
+import com.aydsii.demo.CU_34.model.Cliente;
+import com.aydsii.demo.CU_34.model.EstadoPedido;
+import com.aydsii.demo.CU_34.model.MedioPago;
+import com.aydsii.demo.CU_34.model.Producto;
+import com.aydsii.demo.CU_34.repository.ClienteRepository;
+import com.aydsii.demo.CU_34.repository.ProductoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;

@@ -1,4 +1,4 @@
-package com.aydsii.demo.CU_34.exception;
+package com.aydsii.demo.CU_12.exception;
 
 /**
  * Se lanza cuando el pedido no existe o no pertenece al cliente que lo consulta (FE-02).

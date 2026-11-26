@@ -1,4 +1,4 @@
-package com.aydsii.demo.CU_34.exception;
+package com.aydsii.demo.CU_12.exception;
 
 /** Se lanza cuando un producto no esta disponible o no alcanza el stock. Responde HTTP 409. */
 public class StockInsuficienteException extends RuntimeException {

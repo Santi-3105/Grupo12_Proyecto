@@ -3,10 +3,24 @@ package com.aydsii.demo.CU_12.service;
 import com.aydsii.demo.CU_12.dto.*;
 import com.aydsii.demo.CU_12.exception.*;
 import com.aydsii.demo.CU_12.model.*;
-import com.aydsii.demo.CU_12.repository.*;
-import com.aydsii.demo.CU_34.exception.*;
-import com.aydsii.demo.CU_34.model.*;
-import com.aydsii.demo.CU_34.repository.*;
+import com.aydsii.demo.CU_12.repository.CarritoRepository;
+import com.aydsii.demo.CU_12.repository.EnvioRepository;
+import com.aydsii.demo.CU_12.repository.EstadoPedidoRepository;
+import com.aydsii.demo.CU_12.repository.MedioPagoRepository;
+import com.aydsii.demo.CU_12.repository.PagoRepository;
+import com.aydsii.demo.CU_34.exception.ProductoNoEncontradoException;
+import com.aydsii.demo.CU_34.model.Cliente;
+import com.aydsii.demo.CU_34.model.DetallePedido;
+import com.aydsii.demo.CU_34.model.Envio;
+import com.aydsii.demo.CU_34.model.EstadoPedido;
+import com.aydsii.demo.CU_34.model.MedioPago;
+import com.aydsii.demo.CU_34.model.Pago;
+import com.aydsii.demo.CU_34.model.Pedido;
+import com.aydsii.demo.CU_34.model.Producto;
+import com.aydsii.demo.CU_34.model.TipoEntrega;
+import com.aydsii.demo.CU_34.repository.ClienteRepository;
+import com.aydsii.demo.CU_34.repository.PedidoRepository;
+import com.aydsii.demo.CU_34.repository.ProductoRepository;
 //Nos resuelve de escribir codigo repetitivo una y otra vez, basicamente genera este mediante notaciones en tiempo de compilacion como getters y setters 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -86,7 +100,7 @@ public class PedidoService {
         for (ItemCarrito item : carrito.getItems()) {
             Producto producto = productoRepository.findById(item.getProducto().getIdProducto())
                     .orElseThrow(() -> new ProductoNoEncontradoException(item.getProducto().getIdProducto()));
-            producto.verificarStock(item.getCantidad()); // lanza StockInsuficienteException (409)
+            verificarStock(producto, item.getCantidad()); // lanza StockInsuficienteException (409)
             productos.add(producto);
         }
 
@@ -105,7 +119,7 @@ public class PedidoService {
             // El precio se "congela" en el detalle al momento de la compra
             pedido.agregarDetalle(new DetallePedido(producto, item.getCantidad(), producto.getPrecio()));
 
-            producto.descontarStock(item.getCantidad());
+            descontarStock(producto, item.getCantidad());
             productoRepository.save(producto);
         }
 
@@ -235,6 +249,23 @@ public class PedidoService {
     // ---------------------------------------------------------------------
     //  Métodos privados de armado de DTO (son los "mensajes a sí mismo" del diagrama)
     // ---------------------------------------------------------------------
+
+    private void verificarStock(Producto producto, Integer cantidad) {
+        if (!Boolean.TRUE.equals(producto.getEstado())) {
+            throw new StockInsuficienteException(
+                    "El producto '" + producto.getNombre() + "' no está disponible para la venta");
+        }
+        if (producto.getStock() < cantidad) {
+            throw new StockInsuficienteException(
+                    "Stock insuficiente para '" + producto.getNombre() + "': solicitado " + cantidad
+                            + ", disponible " + producto.getStock());
+        }
+    }
+
+    private void descontarStock(Producto producto, Integer cantidad) {
+        verificarStock(producto, cantidad);
+        producto.setStock(producto.getStock() - cantidad);
+    }
 
     /** Paso 7: convierte cada pedido en un resumen para el listado. */
     private List<PedidoResumenDTO> mapearAResumenDTO(List<Pedido> pedidos) {
